@@ -133,9 +133,9 @@ export default function QuizPage() {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="text-center space-y-4">
-                    {/* <LoadingSpinner className="h-12 w-12 mx-auto animate-spin text-primary" /> */}
+                    <LoadingSpinner className="h-12 w-12 mx-auto animate-spin text-primary" />
                     <p className="text-lg font-medium text-gray-700 dark:text-gray-300">
-                        {/* {isLoading ? 'Generating your daily quiz...' : 'Loading...'} */}
+                        {isLoading ? 'Generating your daily quiz...' : 'Loading...'}
                     </p>
                 </div>
             </div>
