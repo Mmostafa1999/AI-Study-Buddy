@@ -1,11 +1,9 @@
 'use client'
 
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react'
-import { User, onAuthStateChanged } from 'firebase/auth'
-import { auth } from './lib/firebase'
 import { QuizProvider } from './contexts/QuizContext'
 import { StudyPlanProvider } from './contexts/StudyPlanContext'
-import { AuthContext } from './hooks/useAuth'
+import { AuthProvider } from './hooks/useAuth'
 
 type ThemeType = 'light' | 'dark' | 'system'
 
@@ -22,20 +20,8 @@ const ThemeContext = createContext<ThemeContextType>({
 export const useTheme = () => useContext(ThemeContext)
 
 export function Providers({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<User | null>(null)
-    const [loading, setLoading] = useState(true)
     const [theme, setTheme] = useState<ThemeType>('system')
     const [mounted, setMounted] = useState(false)
-
-    // Handle authentication state
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            setUser(user)
-            setLoading(false)
-        })
-
-        return () => unsubscribe()
-    }, [])
 
     // Handle theme
     useEffect(() => {
@@ -67,7 +53,7 @@ export function Providers({ children }: { children: ReactNode }) {
     }, [theme, mounted])
 
     return (
-        <AuthContext.Provider value={{ user, loading }}>
+        <AuthProvider>
             <ThemeContext.Provider value={{ theme, setTheme }}>
                 <StudyPlanProvider>
                     <QuizProvider>
@@ -75,6 +61,6 @@ export function Providers({ children }: { children: ReactNode }) {
                     </QuizProvider>
                 </StudyPlanProvider>
             </ThemeContext.Provider>
-        </AuthContext.Provider>
+        </AuthProvider>
     )
 } 

@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import Markdown from 'react-markdown'
+import { motion } from 'framer-motion'
 import { useChat } from 'ai/react'
 import { useAuth } from '../hooks/useAuth'
+import { MessageItem } from './ui/MessageItem'
+import { TypingIndicator } from './ui/TypingIndicator'
 
 export default function ChatBox() {
     const [isTyping, setIsTyping] = useState(false)
@@ -98,83 +99,12 @@ export default function ChatBox() {
                     </div>
                 ) : (
                     messages.map((message) => (
-                        <motion.div
-                            key={message.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'
-                                }`}
-                        >
-                            <div
-                                className={`max-w-3/4 rounded-lg px-4 py-2 ${message.role === 'user'
-                                    ? 'bg-primary-600 text-white'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                                    }`}
-                            >
-                                {message.role === 'assistant' ? (
-                                    <div className="prose dark:prose-invert prose-sm">
-                                        <Markdown>{message.content}</Markdown>
-                                    </div>
-                                ) : (
-                                    <div>{message.content}</div>
-                                )}
-                            </div>
-                        </motion.div>
+                        <MessageItem key={message.id} message={message} />
                     ))
                 )}
 
                 {/* Typing indicator */}
-                <AnimatePresence>
-                    {isTyping && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 10 }}
-                            className="flex justify-start"
-                        >
-                            <div className="max-w-3/4 rounded-lg px-4 py-2 bg-gray-100 dark:bg-gray-700">
-                                <div className="flex space-x-1">
-                                    <motion.div
-                                        animate={{
-                                            y: [0, -5, 0],
-                                        }}
-                                        transition={{
-                                            duration: 0.6,
-                                            repeat: Infinity,
-                                            repeatType: 'loop',
-                                            delay: 0,
-                                        }}
-                                        className="h-2 w-2 rounded-full bg-gray-400 dark:bg-gray-300"
-                                    />
-                                    <motion.div
-                                        animate={{
-                                            y: [0, -5, 0],
-                                        }}
-                                        transition={{
-                                            duration: 0.6,
-                                            repeat: Infinity,
-                                            repeatType: 'loop',
-                                            delay: 0.2,
-                                        }}
-                                        className="h-2 w-2 rounded-full bg-gray-400 dark:bg-gray-300"
-                                    />
-                                    <motion.div
-                                        animate={{
-                                            y: [0, -5, 0],
-                                        }}
-                                        transition={{
-                                            duration: 0.6,
-                                            repeat: Infinity,
-                                            repeatType: 'loop',
-                                            delay: 0.4,
-                                        }}
-                                        className="h-2 w-2 rounded-full bg-gray-400 dark:bg-gray-300"
-                                    />
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                <TypingIndicator isTyping={isTyping} />
 
                 {/* Error message */}
                 {error && (
@@ -199,16 +129,15 @@ export default function ChatBox() {
                         type="text"
                         value={input}
                         onChange={handleInputChange}
-                        placeholder="Ask a question..."
-                        className="input flex-1"
+                        placeholder="Type your message..."
+                        className="flex-1 px-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                         disabled={isLoading}
                     />
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                    <button
                         type="submit"
+                        className={`px-4 py-2 rounded-full bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:bg-primary-700 dark:hover:bg-primary-800 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
                         disabled={isLoading || input.trim() === ''}
-                        className="btn btn-primary"
                     >
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -224,7 +153,7 @@ export default function ChatBox() {
                                 d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
                             />
                         </svg>
-                    </motion.button>
+                    </button>
                 </form>
             </div>
         </div>

@@ -5,36 +5,8 @@ import { useAuth } from '@/app/hooks/useAuth'
 import { toast } from '@/app/components/ui/use-toast'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/app/lib/firebase'
-
-export interface Task {
-    subject: string
-    duration: number
-    activity: string
-    priority: string
-}
-
-export interface Day {
-    date: string
-    tasks: Task[]
-}
-
-export interface Subject {
-    name: string
-    difficulty: string
-    importance: string
-}
-
-export interface StudyPlan {
-    id: string
-    userId: string
-    studyPlan: {
-        days: Day[]
-    }
-    subjects: Subject[]
-    examDate: string
-    hoursPerDay: number
-    createdAt: string
-}
+import { studyPlanService } from '@/app/lib/studyPlanService'
+import { StudyPlan, Day, Task, Subject } from '@/app/types'
 
 interface StudyPlanContextType {
     studyPlans: StudyPlan[]
@@ -69,7 +41,6 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
 
         setLoading(true)
         try {
-            const token = await user.getIdToken()
             const studyPlansRef = collection(db, 'studyPlans')
             const q = query(studyPlansRef, where('userId', '==', user.uid))
             const snapshot = await getDocs(q)
@@ -92,10 +63,15 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
             }
         } catch (error) {
             console.error('Error fetching study plans:', error)
+            toast({
+                title: 'Error',
+                description: 'Failed to load study plans. Please try again.',
+                variant: 'destructive',
+            })
         } finally {
             setLoading(false)
         }
-    }, [user, currentStudyPlan, setStudyPlans, setCurrentStudyPlan, setLoading])
+    }, [user, currentStudyPlan])
 
     // Fetch a single study plan by ID
     const fetchStudyPlan = async (id: string): Promise<StudyPlan | null> => {
@@ -104,19 +80,14 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
         try {
             setLoading(true)
             const token = await user.getIdToken(true)
+            studyPlanService.setAuthToken(token)
+            const result = await studyPlanService.fetchById(id)
 
-            const response = await fetch(`/api/study-plans/${id}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            })
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch study plan')
+            if (!result.success) {
+                throw new Error(result.error.message || 'Failed to fetch study plan')
             }
 
-            const data = await response.json()
-            const plan = data.plan
+            const plan = result.data
 
             // Update the local cache
             setStudyPlans(prev => {
@@ -152,27 +123,25 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
         try {
             setLoading(true)
             const token = await user.getIdToken(true)
+            studyPlanService.setAuthToken(token)
+            
+            // Add userId and createdAt which are required by our API service
+            const dataWithMetadata = {
+                ...studyPlanData,
+                userId: user.uid,
+                createdAt: new Date().toISOString()
+            };
+            
+            const result = await studyPlanService.create(dataWithMetadata)
 
-            const response = await fetch('/api/study-plans', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify(studyPlanData),
-            })
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => null)
-                throw new Error(`Failed to save study plan: ${response.status} ${errorData?.error || ''}`)
+            if (!result.success) {
+                throw new Error(result.error.message || 'Failed to create study plan')
             }
-
-            const data = await response.json()
 
             // Refresh the study plans list
             await fetchStudyPlans()
 
-            return data.planId || null
+            return result.data
         } catch (error) {
             console.error('Error creating study plan:', error)
             toast({
@@ -196,35 +165,21 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
         try {
             setLoading(true)
             const token = await user.getIdToken(true)
+            studyPlanService.setAuthToken(token)
+            const result = await studyPlanService.update(id, studyPlanData)
 
-            const response = await fetch(`/api/study-plans/${id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify(studyPlanData),
-            })
-
-            if (!response.ok) {
-                throw new Error('Failed to update study plan')
+            if (!result.success) {
+                throw new Error(result.error.message || 'Failed to update study plan')
             }
 
             // Update the local cache
-            setStudyPlans(prev => {
-                return prev.map(plan => {
-                    if (plan.id === id) {
-                        return { ...plan, ...studyPlanData }
-                    }
-                    return plan
-                })
-            })
+            setStudyPlans(prev =>
+                prev.map(plan => (plan.id === id ? { ...plan, ...studyPlanData } : plan))
+            )
 
+            // Update current study plan if needed
             if (currentStudyPlan?.id === id) {
-                setCurrentStudyPlan(prev => {
-                    if (!prev) return null
-                    return { ...prev, ...studyPlanData }
-                })
+                setCurrentStudyPlan(prev => prev ? { ...prev, ...studyPlanData } : null)
             }
 
             return true
@@ -232,7 +187,7 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
             console.error('Error updating study plan:', error)
             toast({
                 title: 'Error',
-                description: 'Failed to update study plan',
+                description: error instanceof Error ? error.message : 'Failed to update study plan',
                 variant: 'destructive',
             })
             return false
@@ -248,23 +203,20 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
         try {
             setLoading(true)
             const token = await user.getIdToken(true)
+            studyPlanService.setAuthToken(token)
+            const result = await studyPlanService.delete(id)
 
-            const response = await fetch(`/api/study-plans/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            })
-
-            if (!response.ok) {
-                throw new Error('Failed to delete study plan')
+            if (!result.success) {
+                throw new Error(result.error.message || 'Failed to delete study plan')
             }
 
-            // Update the local cache
+            // Update local cache
             setStudyPlans(prev => prev.filter(plan => plan.id !== id))
 
+            // Clear current study plan if it was deleted
             if (currentStudyPlan?.id === id) {
-                setCurrentStudyPlan(null)
+                const remaining = studyPlans.filter(plan => plan.id !== id)
+                setCurrentStudyPlan(remaining.length > 0 ? remaining[0] : null)
             }
 
             return true
@@ -272,7 +224,7 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
             console.error('Error deleting study plan:', error)
             toast({
                 title: 'Error',
-                description: 'Failed to delete study plan',
+                description: error instanceof Error ? error.message : 'Failed to delete study plan',
                 variant: 'destructive',
             })
             return false
@@ -281,31 +233,28 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
         }
     }
 
-    // Auto-fetch study plans when user logs in
+    // Load study plans on mount or when user changes
     useEffect(() => {
         if (user) {
             fetchStudyPlans()
         } else {
+            // Clear data when user logs out
             setStudyPlans([])
             setCurrentStudyPlan(null)
         }
     }, [user, fetchStudyPlans])
 
-    return (
-        <StudyPlanContext.Provider
-            value={{
-                studyPlans,
-                currentStudyPlan,
-                loading,
-                fetchStudyPlans,
-                fetchStudyPlan,
-                createStudyPlan,
-                updateStudyPlan,
-                deleteStudyPlan,
-                setCurrentStudyPlan,
-            }}
-        >
-            {children}
-        </StudyPlanContext.Provider>
-    )
+    const value = {
+        studyPlans,
+        currentStudyPlan,
+        loading,
+        fetchStudyPlans,
+        fetchStudyPlan,
+        createStudyPlan,
+        updateStudyPlan,
+        deleteStudyPlan,
+        setCurrentStudyPlan,
+    }
+
+    return <StudyPlanContext.Provider value={value}>{children}</StudyPlanContext.Provider>
 } 

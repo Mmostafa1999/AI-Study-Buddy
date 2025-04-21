@@ -99,17 +99,58 @@ export default function FlashcardsPage() {
                 })
             })
 
-            if (!response.ok) {
-                const errorData = await response.json()
-                throw new Error(errorData.error || 'Failed to generate flashcards')
+            let responseData;
+            try {
+                responseData = await response.json();
+                console.log("API Response data:", responseData);
+            } catch (parseError) {
+                console.error("Error parsing API response:", parseError);
+                throw new Error("Failed to parse server response");
             }
 
-            const data = await response.json()
+            // First check if the response was successful
+            if (!response.ok) {
+                const errorMessage = responseData.error || 'Failed to generate flashcards';
+                console.error('API error response:', responseData);
+                throw new Error(errorMessage);
+            }
+
+            // Check for error in the response
+            if (responseData.error) {
+                console.error('Error in response:', responseData.error);
+                throw new Error(responseData.error);
+            }
+
+            // Extract flashcards from the response data structure
+            // The API wraps the data in a 'data' property
+            const flashcardsData = responseData.data?.flashcards;
+
+            // Check if flashcards data is valid before proceeding
+            if (!flashcardsData) {
+                console.error("Missing flashcards data in response:", responseData);
+                throw new Error('No flashcards data received from the server');
+            }
+
+            if (!Array.isArray(flashcardsData)) {
+                console.error("Flashcards data is not an array:", flashcardsData);
+                throw new Error('Invalid flashcards format received from the server');
+            }
+
+            if (flashcardsData.length === 0) {
+                console.error("Empty flashcards array received");
+                throw new Error('No flashcards were generated. Try with different notes or subject.');
+            }
 
             // Save flashcards to Firestore
             const newFlashcards: Flashcard[] = []
 
-            for (const card of data.flashcards) {
+            for (const card of flashcardsData) {
+                // Validate each flashcard has required fields
+                if (!card.question || !card.answer) {
+                    console.warn('Skipping invalid flashcard without question or answer', card)
+                    continue
+                }
+
                 // Add to Firestore
                 const docRef = await addDoc(collection(db, 'flashcards'), {
                     userId: user?.uid,
@@ -129,8 +170,12 @@ export default function FlashcardsPage() {
                 })
             }
 
+            if (newFlashcards.length === 0) {
+                throw new Error('Failed to save any valid flashcards')
+            }
+
             setFlashcards([...newFlashcards, ...flashcards])
-            setSuccess('Flashcards generated successfully!')
+            setSuccess(`${newFlashcards.length} flashcards generated successfully!`)
             setActiveTab('view')
 
             // Reset form

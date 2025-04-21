@@ -214,3 +214,9 @@
 .quiz-option-incorrect.animate {
   animation: pulse-incorrect 1s 1;
 }
+
+/* Flashcard styles */
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}

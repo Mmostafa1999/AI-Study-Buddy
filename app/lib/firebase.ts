@@ -1,6 +1,7 @@
 import { FirebaseApp, getApps, initializeApp } from "firebase/app";
 import { Auth, getAuth } from "firebase/auth";
 import { Firestore, getFirestore } from "firebase/firestore";
+import { AppError } from "./errorUtils";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -26,37 +27,51 @@ if (!getApps().length) {
 auth = getAuth(app);
 db = getFirestore(app);
 
-// For server-side routes that need auth verification
-// This creates a "fake" auth object that works with our route handlers
-// since the client-side auth methods won't work on the server
+// For server-side token verification
+// This is a simplified auth class for server components
 class ServerAuth {
   currentUser: any = null;
 
-  // This method mimics the client-side auth token verification
-  // but works from server components
+  // Using a JWT verification approach (recommended to use Firebase Admin SDK in production)
   async verifyIdToken(token: string) {
     try {
-      // Make a request to Firebase Auth REST API to verify the token
+      if (!token) {
+        throw new AppError("No token provided", 401, "MISSING_TOKEN");
+      }
+
+      // In a production environment, this should be handled by the Firebase Admin SDK
+      // which would verify the token properly without exposing API keys
+      // Example using firebase-admin package:
+      // const decodedToken = await admin.auth().verifyIdToken(token);
+      // return { uid: decodedToken.uid, email: decodedToken.email };
+
+      // For demo purposes only - in a real app, use a server-side API endpoint
+      // that uses Firebase Admin SDK or a similar secure method
       const response = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}`,
+        `https://identitytoolkit.googleapis.com/v1/accounts:lookup`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            // API key should be kept on the server side, not exposed in client requests
+            // Pass auth tokens instead of API keys in request headers
           },
-          body: JSON.stringify({ idToken: token }),
+          body: JSON.stringify({
+            idToken: token,
+            // Include only what's needed for verification
+          }),
         },
       );
 
       if (!response.ok) {
-        throw new Error("Invalid token");
+        throw new AppError("Invalid token", 401, "INVALID_TOKEN");
       }
 
       const data = await response.json();
       const users = data.users;
 
       if (!users || users.length === 0) {
-        throw new Error("User not found");
+        throw new AppError("User not found", 404, "USER_NOT_FOUND");
       }
 
       const user = users[0];
@@ -73,7 +88,9 @@ class ServerAuth {
       };
     } catch (error) {
       console.error("Error verifying token:", error);
-      throw error;
+      throw error instanceof AppError
+        ? error
+        : new AppError("Authentication failed", 401, "AUTH_FAILED");
     }
   }
 }
@@ -82,3 +99,7 @@ class ServerAuth {
 const serverAuth = new ServerAuth();
 
 export { app, auth, db, serverAuth };
+
+// SECURITY NOTE: For production, implement proper token verification
+// using Firebase Admin SDK in a server environment (e.g., a secure API route)
+// This class is for demonstration purposes only

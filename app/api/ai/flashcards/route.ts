@@ -1,148 +1,82 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { NextRequest, NextResponse } from "next/server";
-
-// Initialize the Google Generative AI SDK
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
+import {
+  errorResponse,
+  sanitizeInput,
+  successResponse,
+  validateRequestBody,
+  validateToken,
+} from "@/app/lib/apiService";
+import { generateFlashcards } from "@/app/lib/gemini";
+import { FlashcardGenerationRequest } from "@/app/types";
+import { NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify authentication
-    const authToken = req.headers.get("Authorization")?.split("Bearer ")[1];
-    if (!authToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Validate authentication token
+    const tokenValidation = validateToken(req);
+    if (!tokenValidation.isValid) {
+      return errorResponse(tokenValidation.message || "Unauthorized", 401);
     }
 
-    // Parse the request body
-    const {
-      notes,
-      subject,
-      language = "English",
-      count = 10,
-    } = await req.json();
+    // Parse and validate request body
+    const requestBody = (await req.json()) as FlashcardGenerationRequest;
+    const validation = validateRequestBody(requestBody, ["notes", "subject"]);
 
-    if (!notes || notes.trim() === "") {
-      return NextResponse.json(
-        { error: "Notes are required" },
-        { status: 400 },
+    if (!validation.isValid) {
+      return errorResponse(
+        `Missing required fields: ${validation.missingFields.join(", ")}`,
       );
     }
 
-    if (!subject || subject.trim() === "") {
-      return NextResponse.json(
-        { error: "Subject is required" },
-        { status: 400 },
-      );
-    }
+    // Sanitize input
+    const sanitizedNotes = sanitizeInput(requestBody.notes);
 
-    // Limit notes length to prevent abuse
-    const MAX_NOTES_LENGTH = 15000; // About 5 pages of text
-    const trimmedNotes = notes.slice(0, MAX_NOTES_LENGTH);
-    if (notes.length > MAX_NOTES_LENGTH) {
+    // Check if notes were truncated
+    if (sanitizedNotes.length < requestBody.notes.length) {
       console.log(
-        `Notes truncated from ${notes.length} to ${MAX_NOTES_LENGTH} characters`,
+        `Notes truncated from ${requestBody.notes.length} to ${sanitizedNotes.length} characters`,
       );
     }
 
-    // Prepare system instructions for the AI
-    const systemInstruction = `
-      You are an AI assistant that creates study flashcards from student notes about ${subject}.
-      Generate ${count} flashcards in the following JSON format:
-      [
-        {
-          "question": "Concise question about a key concept",
-          "answer": "Clear, comprehensive answer"
-        }
-      ]
-      Focus on the most important concepts in the notes related to ${subject}.
-      Create questions that test understanding rather than just memorization.
-      Include a mix of definition questions, concept explanations, and application problems.
-      Generate all content in ${language} language.
-      Ensure the generated JSON is valid and can be parsed with JSON.parse().
-      The output should ONLY contain the JSON array with no additional text or explanation.
-    `;
-
-    // Generate content
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash-001",
+    // Generate flashcards
+    console.log("Generating flashcards for subject:", requestBody.subject);
+    const flashcardsResult = await generateFlashcards({
+      ...requestBody,
+      notes: sanitizedNotes,
     });
 
-    const generationConfig = {
-      temperature: 0.2, // Lower temperature for more consistent, predictable output
-      topK: 40,
-      topP: 0.95,
-      maxOutputTokens: 2048,
-    };
-
-    const prompt = `${systemInstruction}\n\nNotes for ${subject}:\n${trimmedNotes}`;
-
-    try {
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig,
-      });
-
-      const response = await result.response;
-      const text = response.text();
-
-      // Extract JSON from the response
-      const jsonMatch = text.match(/\[\s*\{[\s\S]+\}\s*\]/);
-      if (!jsonMatch) {
-        console.error("Failed to extract JSON from AI response:", text);
-        return NextResponse.json(
-          {
-            error:
-              "Failed to generate valid flashcards. Please try again or adjust your notes.",
-          },
-          { status: 500 },
-        );
-      }
-
-      try {
-        const flashcards = JSON.parse(jsonMatch[0]);
-        // Verify the structure of each flashcard
-        const validFlashcards = flashcards.filter(
-          (card: any) =>
-            card &&
-            typeof card === "object" &&
-            typeof card.question === "string" &&
-            typeof card.answer === "string",
-        );
-
-        if (validFlashcards.length === 0) {
-          return NextResponse.json(
-            {
-              error:
-                "No valid flashcards were generated. Please try again with different notes.",
-            },
-            { status: 500 },
-          );
-        }
-
-        return NextResponse.json({ flashcards: validFlashcards });
-      } catch (parseError) {
-        console.error("Error parsing flashcards JSON:", parseError);
-        return NextResponse.json(
-          {
-            error: "Error parsing the generated flashcards. Please try again.",
-          },
-          { status: 500 },
-        );
-      }
-    } catch (aiError) {
-      console.error("AI generation error:", aiError);
-      return NextResponse.json(
-        {
-          error:
-            "Failed to generate flashcards. Please try again with simpler notes or a different subject.",
-        },
-        { status: 500 },
+    // Check if generation was successful
+    if (!flashcardsResult.success) {
+      throw new Error(
+        flashcardsResult.error.message || "Failed to generate flashcards",
       );
     }
+
+    const flashcards = flashcardsResult.data;
+    console.log("Raw flashcards response:", flashcards);
+
+    // Ensure each flashcard has required fields
+    const validFlashcards = flashcards.filter(
+      card => card && typeof card === "object" && card.question && card.answer,
+    );
+    console.log(
+      `Valid flashcards: ${validFlashcards.length}/${flashcards.length}`,
+    );
+
+    if (validFlashcards.length === 0) {
+      throw new Error("No valid flashcards could be generated");
+    }
+
+    // Create response with the expected structure
+    const responseData = { flashcards: validFlashcards };
+    console.log("Sending response:", responseData);
+
+    // Return the generated flashcards
+    return successResponse(responseData);
   } catch (error) {
     console.error("Error in flashcards endpoint:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal server error";
+
+    return errorResponse(errorMessage, 500);
   }
 }
