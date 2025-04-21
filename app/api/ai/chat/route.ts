@@ -1,11 +1,42 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { StreamingTextResponse } from "ai";
+import { Ratelimit } from "@upstash/ratelimit";
+import { kv } from "@vercel/kv";
+import { NextRequest } from "next/server";
+
+// Set max duration for streaming responses
+export const maxDuration = 30;
 
 // Initialize the Google Generative AI SDK
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
-export async function POST(req: Request) {
+// Create Rate limit - 5 requests per 30 seconds
+const ratelimit = new Ratelimit({
+  redis: kv,
+  limiter: Ratelimit.fixedWindow(5, "30s"),
+  analytics: true,
+});
+
+export async function POST(req: NextRequest) {
   try {
+    // Get client IP for rate limiting
+    const ip = req.ip ?? "anonymous";
+    const { success, remaining } = await ratelimit.limit(ip);
+
+    // Return 429 if rate limit exceeded
+    if (!success) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Too many requests. Please try again later.",
+          remaining
+        }), 
+        { 
+          status: 429, 
+          headers: { "Content-Type": "application/json" } 
+        }
+      );
+    }
+
     // Verify authentication
     const authToken = req.headers.get("Authorization")?.split("Bearer ")[1];
     if (!authToken) {

@@ -9,6 +9,7 @@ import { TypingIndicator } from './ui/TypingIndicator'
 
 export default function ChatBox() {
     const [isTyping, setIsTyping] = useState(false)
+    const [rateLimitInfo, setRateLimitInfo] = useState<{ error: string, remaining: number } | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const { user } = useAuth()
 
@@ -24,6 +25,24 @@ export default function ChatBox() {
         onFinish: () => {
             setIsTyping(false)
         },
+        onError: (error) => {
+            // Check if it's a rate limit error (429)
+            if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+                try {
+                    const errorData = JSON.parse(error.message.replace('Error:', '').trim());
+                    setRateLimitInfo({
+                        error: errorData.error,
+                        remaining: errorData.remaining || 0
+                    });
+                } catch (e) {
+                    // If we can't parse the JSON, just show a generic rate limit message
+                    setRateLimitInfo({
+                        error: "Rate limit exceeded. Please try again later.",
+                        remaining: 0
+                    });
+                }
+            }
+        },
         headers: {
             'Authorization': `Bearer ${user?.uid || ''}`,
         },
@@ -34,11 +53,19 @@ export default function ChatBox() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
 
+    // Reset rate limit info when user types a new message
+    useEffect(() => {
+        if (input.trim() !== '') {
+            setRateLimitInfo(null);
+        }
+    }, [input]);
+
     // Custom submit handler to show typing indicator
     const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
         if (input.trim() === '') return
         setIsTyping(true)
+        setRateLimitInfo(null)
         handleSubmit(e)
     }
 
@@ -106,8 +133,21 @@ export default function ChatBox() {
                 {/* Typing indicator */}
                 <TypingIndicator isTyping={isTyping} />
 
-                {/* Error message */}
-                {error && (
+                {/* Rate limit error message */}
+                {rateLimitInfo && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex justify-center"
+                    >
+                        <div className="max-w-3/4 rounded-lg px-4 py-2 bg-amber-100 text-amber-600 text-sm">
+                            {rateLimitInfo.error} Please wait a moment before trying again.
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* Other error message */}
+                {error && !rateLimitInfo && (
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -135,9 +175,9 @@ export default function ChatBox() {
                     />
                     <button
                         type="submit"
-                        className={`px-4 py-2 rounded-full bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:bg-primary-700 dark:hover:bg-primary-800 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                        className={`px-4 py-2 rounded-full bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:bg-primary-700 dark:hover:bg-primary-800 transition-colors ${isLoading || rateLimitInfo ? 'opacity-50 cursor-not-allowed' : ''
                             }`}
-                        disabled={isLoading || input.trim() === ''}
+                        disabled={isLoading || input.trim() === '' || !!rateLimitInfo}
                     >
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
