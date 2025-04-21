@@ -22,22 +22,31 @@ KV_REST_API_READ_ONLY_TOKEN=your_kv_read_only_token_from_vercel
 
 ## How to Set Up Vercel KV
 
-1. **Create a KV Database in Vercel**:
+1. **Create a KV Database in Vercel/Upstash**:
    - Go to your Vercel dashboard
-   - Navigate to "Storage" > "KV Database"
-   - Click "Create Database"
-   - Follow the setup wizard
+   - Navigate to the Storage tab
+   - In the Marketplace Database Providers section, click "Create" next to the KV/Redis option
+   - Follow the setup wizard to connect to your project
 
 2. **Connect the KV Database to Your Project**:
-   - Choose your AI Study Buddy project
+   - Choose your AI Study Buddy project during the setup process
    - Click "Connect"
    - Vercel will automatically add the required environment variables to your project
 
 3. **Local Development**:
-   - After creating the KV database, you can copy the environment variables to your `.env.local` file for local testing
-   - In your Vercel dashboard, go to your KV database
-   - Click on "Environment Variables"
-   - Copy the values and add them to your `.env.local` file
+   - After creating the KV database, you need to copy the environment variables to your `.env.local` file
+   - From your Vercel dashboard, go to your project Settings > Environment Variables
+   - Copy the KV_* variables (they'll be prefixed based on what you chose during setup)
+   - Add them to your `.env.local` file
+
+## Fallback Behavior
+
+The application has been configured to gracefully handle missing KV environment variables:
+
+1. If KV is not configured, rate limiting will be disabled but the application will continue to function.
+2. If KV is configured but encounters errors, the application will log warnings and continue without rate limiting.
+
+This ensures that development can continue even without a proper KV setup, while production environments will have rate limiting enabled.
 
 ## Testing Rate Limiting
 
@@ -54,9 +63,11 @@ If rate limiting isn't working properly:
 1. **Check KV Connection**:
    - Make sure your Vercel KV database is properly connected
    - Verify the environment variables are correctly set
+   - For local development, copy the actual values from Vercel to your `.env.local` file
 
 2. **Logs**:
-   - Check the Vercel logs for any errors related to KV or rate limiting
+   - Check the Vercel logs or your local development logs for warnings about KV configuration
+   - Look for messages like "Rate limiting is disabled: KV not configured"
 
 3. **API Response**:
    - The API returns detailed error messages when rate limiting is applied
