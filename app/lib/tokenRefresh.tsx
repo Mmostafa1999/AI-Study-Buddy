@@ -19,7 +19,6 @@ export function TokenRefreshProvider({ children }: { children: ReactNode }) {
             try {
                 const token = await user.getIdToken(true);
                 localStorage.setItem('authToken', token);
-                console.log("Global auth token refreshed");
             } catch (error) {
                 console.error("Global token refresh error:", error);
             }

@@ -41,29 +41,29 @@ class ServerAuth {
 
       // In a production environment, this should be handled by the Firebase Admin SDK
       // which would verify the token properly without exposing API keys
-      // Example using firebase-admin package:
-      // const decodedToken = await admin.auth().verifyIdToken(token);
-      // return { uid: decodedToken.uid, email: decodedToken.email };
+      // This is a simplified approach for demo purposes
+      const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+      
+      if (!apiKey) {
+        console.error("Missing Firebase API key in environment variables");
+        throw new AppError("Configuration error", 500, "CONFIG_ERROR");
+      }
 
-      // For demo purposes only - in a real app, use a server-side API endpoint
-      // that uses Firebase Admin SDK or a similar secure method
       const response = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:lookup`,
+        `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // API key should be kept on the server side, not exposed in client requests
-            // Pass auth tokens instead of API keys in request headers
           },
           body: JSON.stringify({
             idToken: token,
-            // Include only what's needed for verification
           }),
         },
       );
 
       if (!response.ok) {
+        console.error(`Token verification failed with status ${response.status}`);
         throw new AppError("Invalid token", 401, "INVALID_TOKEN");
       }
 
@@ -71,6 +71,7 @@ class ServerAuth {
       const users = data.users;
 
       if (!users || users.length === 0) {
+        console.error("No user found for the provided token");
         throw new AppError("User not found", 404, "USER_NOT_FOUND");
       }
 

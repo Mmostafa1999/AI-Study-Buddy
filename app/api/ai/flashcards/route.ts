@@ -30,15 +30,9 @@ export async function POST(req: NextRequest) {
     // Sanitize input
     const sanitizedNotes = sanitizeInput(requestBody.notes);
 
-    // Check if notes were truncated
-    if (sanitizedNotes.length < requestBody.notes.length) {
-      console.log(
-        `Notes truncated from ${requestBody.notes.length} to ${sanitizedNotes.length} characters`,
-      );
-    }
+  
 
     // Generate flashcards
-    console.log("Generating flashcards for subject:", requestBody.subject);
     const flashcardsResult = await generateFlashcards({
       ...requestBody,
       notes: sanitizedNotes,
@@ -52,15 +46,12 @@ export async function POST(req: NextRequest) {
     }
 
     const flashcards = flashcardsResult.data;
-    console.log("Raw flashcards response:", flashcards);
 
     // Ensure each flashcard has required fields
     const validFlashcards = flashcards.filter(
       card => card && typeof card === "object" && card.question && card.answer,
     );
-    console.log(
-      `Valid flashcards: ${validFlashcards.length}/${flashcards.length}`,
-    );
+    
 
     if (validFlashcards.length === 0) {
       throw new Error("No valid flashcards could be generated");
@@ -68,7 +59,6 @@ export async function POST(req: NextRequest) {
 
     // Create response with the expected structure
     const responseData = { flashcards: validFlashcards };
-    console.log("Sending response:", responseData);
 
     // Return the generated flashcards
     return successResponse(responseData);

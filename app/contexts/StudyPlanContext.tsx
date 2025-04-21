@@ -118,40 +118,55 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
     const createStudyPlan = async (
         studyPlanData: Omit<StudyPlan, 'id' | 'userId' | 'createdAt'>
     ): Promise<string | null> => {
-        if (!user) return null
+        if (!user) return null;
 
         try {
-            setLoading(true)
-            const token = await user.getIdToken(true)
-            studyPlanService.setAuthToken(token)
-            
+            setLoading(true);
+
+            // Get token from localStorage if available, or request a fresh one
+            let token;
+            const cachedToken = localStorage.getItem('authToken');
+
+            if (cachedToken) {
+                token = cachedToken;
+            } else {
+                token = await user.getIdToken(true);
+                localStorage.setItem('authToken', token);
+            }
+
+            studyPlanService.setAuthToken(token);
+
             // Add userId and createdAt which are required by our API service
             const dataWithMetadata = {
                 ...studyPlanData,
                 userId: user.uid,
                 createdAt: new Date().toISOString()
             };
-            
-            const result = await studyPlanService.create(dataWithMetadata)
+
+            const result = await studyPlanService.create(dataWithMetadata);
 
             if (!result.success) {
-                throw new Error(result.error.message || 'Failed to create study plan')
+                throw new Error(result.error.message || 'Failed to create study plan');
+            }
+
+            if (!result.data) {
+                throw new Error('API returned success but no ID was provided');
             }
 
             // Refresh the study plans list
-            await fetchStudyPlans()
+            await fetchStudyPlans();
 
-            return result.data
+            return result.data;
         } catch (error) {
-            console.error('Error creating study plan:', error)
+            console.error('Error creating study plan:', error);
             toast({
                 title: 'Error',
                 description: error instanceof Error ? error.message : 'Failed to create study plan',
                 variant: 'destructive',
-            })
-            return null
+            });
+            return null;
         } finally {
-            setLoading(false)
+            setLoading(false);
         }
     }
 

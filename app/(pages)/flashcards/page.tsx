@@ -102,7 +102,6 @@ export default function FlashcardsPage() {
             let responseData;
             try {
                 responseData = await response.json();
-                console.log("API Response data:", responseData);
             } catch (parseError) {
                 console.error("Error parsing API response:", parseError);
                 throw new Error("Failed to parse server response");

@@ -30,7 +30,6 @@ export async function GET(req: NextRequest) {
         const decodedToken = await serverAuth.verifyIdToken(token);
         uid = decodedToken.uid;
       } catch (serverAuthError) {
-        console.log("Server auth failed, trying client auth:", serverAuthError);
 
         // Fallback to client-side auth if available
         if (auth.currentUser) {

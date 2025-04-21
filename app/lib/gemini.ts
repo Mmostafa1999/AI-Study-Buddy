@@ -11,7 +11,7 @@ import { AppError, Result, safeAsync } from "./errorUtils";
 
 // Initialize the Google Generative AI SDK
 const genAI = new GoogleGenerativeAI(
-  process.env.NEXT_PUBLIC_GOOGLE_API_KEY || "",
+  process.env.GOOGLE_API_KEY || "",
 );
 
 // Configuration for the AI model
@@ -110,8 +110,8 @@ const generateContent = async <T>(
 ): Promise<T> => {
   // Validate API key
   if (
-    !process.env.NEXT_PUBLIC_GOOGLE_API_KEY ||
-    process.env.NEXT_PUBLIC_GOOGLE_API_KEY.trim() === ""
+    !process.env.GOOGLE_API_KEY ||
+    process.env.GOOGLE_API_KEY.trim() === ""
   ) {
     throw new AppError(
       "Google API key is missing or empty. Please check your environment variables.",
@@ -208,8 +208,8 @@ export const generateChatResponse = async (
     const model = getGeminiModel();
 
     if (
-      !process.env.NEXT_PUBLIC_GOOGLE_API_KEY ||
-      process.env.NEXT_PUBLIC_GOOGLE_API_KEY.trim() === ""
+      !process.env.GOOGLE_API_KEY ||
+      process.env.GOOGLE_API_KEY.trim() === ""
     ) {
       throw new AppError(
         "Google API key is missing or empty. Please check your environment variables.",
@@ -302,16 +302,23 @@ export const generateStudyPlan = async (
 ): Promise<Result<Day[]>> => {
   return safeAsync(async () => {
     const { subjects, examDate, hoursPerDay } = params;
+    const today = new Date();
+    const formattedToday = today.toISOString().split('T')[0]; // Format as YYYY-MM-DD
 
     const systemPrompt = `
       You are an AI that creates personalized study plans.
-      Generate a study plan from now until the exam date (${examDate}) for the given subjects.
-      Create a JSON array of daily plan objects with "date" (string date in YYYY-MM-DD format) and "tasks" properties.
+      Generate a study plan starting exactly from today (${formattedToday}) until the exam date (${examDate}) for the given subjects.
+      The first day of the plan MUST be today's date (${formattedToday}).
+      Create a JSON array of daily plan objects with the following properties:
+      - "date" (string date in YYYY-MM-DD format)
+      - "title" (string format of the date like "Monday, October 30, 2023")
+      - "tasks" (array of task objects)
+      
       Each task should have "subject", "duration" (in minutes as a number), "activity", and "priority" (high, medium, or low) properties.
       Consider about ${hoursPerDay} hours of study time per day.
       Make the plan realistic and achievable, with variety in activities.
       Make sure the output is valid JSON that can be parsed with JSON.parse().
-      Format: [{"date": "2023-10-15", "tasks": [{"subject": "...", "duration": 30, "activity": "...", "priority": "high"}]}, ...]
+      Format: [{"date": "2023-10-15", "title": "Sunday, October 15, 2023", "tasks": [{"subject": "...", "duration": 30, "activity": "...", "priority": "high"}]}, ...]
     `;
 
     const subjectsList = subjects

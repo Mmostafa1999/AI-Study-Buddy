@@ -26,7 +26,6 @@ export async function GET(
         const decodedToken = await serverAuth.verifyIdToken(token);
         uid = decodedToken.uid;
       } catch (serverAuthError) {
-        console.log("Server auth failed, trying client auth:", serverAuthError);
 
         // Fallback to client-side auth
         if (auth.currentUser) {
@@ -55,7 +54,6 @@ export async function GET(
     }
 
     const planId = params.id;
-    console.log("Fetching study plan:", planId, "for user:", uid);
 
     const docRef = doc(db, "studyPlans", planId);
     const docSnap = await getDoc(docRef);
@@ -117,7 +115,6 @@ export async function PUT(
         const decodedToken = await serverAuth.verifyIdToken(token);
         uid = decodedToken.uid;
       } catch (serverAuthError) {
-        console.log("Server auth failed, trying client auth:", serverAuthError);
 
         // Fallback to client-side auth
         if (auth.currentUser) {
@@ -226,7 +223,6 @@ export async function DELETE(
         const decodedToken = await serverAuth.verifyIdToken(token);
         uid = decodedToken.uid;
       } catch (serverAuthError) {
-        console.log("Server auth failed, trying client auth:", serverAuthError);
 
         // Fallback to client-side auth
         if (auth.currentUser) {

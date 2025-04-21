@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
         const decodedToken = await serverAuth.verifyIdToken(token);
         uid = decodedToken.uid;
       } catch (serverAuthError) {
-        console.log("Server auth failed, trying client auth:", serverAuthError);
+       
 
         // Fallback to client-side auth if there's a currentUser
         if (auth.currentUser) {
@@ -116,12 +116,12 @@ export async function GET(req: NextRequest) {
 // POST: Save a new study plan
 export async function POST(req: NextRequest) {
   try {
-    console.log("[DEBUG] Starting POST request to /api/study-plans");
+    
 
     // Verify authentication
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      console.log("[DEBUG] No Authorization header or invalid format");
+      
       return NextResponse.json(
         { error: "Unauthorized: No token provided" },
         { status: 401 },
@@ -129,34 +129,48 @@ export async function POST(req: NextRequest) {
     }
 
     const token = authHeader.split("Bearer ")[1];
-    console.log("[DEBUG] Token extracted from header, length:", token?.length);
     let uid;
 
     try {
-      // Try serverAuth first, fall back to regular auth if needed
+      // Try serverAuth first
       try {
-        console.log("[DEBUG] Attempting to verify token with serverAuth");
         const decodedToken = await serverAuth.verifyIdToken(token);
         uid = decodedToken.uid;
-        console.log("[DEBUG] ServerAuth successful, UID:", uid);
       } catch (serverAuthError) {
-        console.log(
-          "[DEBUG] Server auth failed, trying client auth:",
-          serverAuthError,
-        );
+       
 
         // Fallback to client-side auth if there's a currentUser
         if (auth.currentUser) {
           uid = auth.currentUser.uid;
         } else {
-          // Use serverAuth for token verification as fallback
-          const decodedToken = await serverAuth.verifyIdToken(token);
-          uid = decodedToken.uid;
+          // Use a direct API call to verify token
+          try {
+            const response = await fetch(
+              `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ idToken: token }),
+              }
+            );
+            
+            if (!response.ok) {
+              throw new Error(`Token verification failed: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            if (!data.users || data.users.length === 0) {
+              throw new Error("No user found for token");
+            }
+            
+            uid = data.users[0].localId;
+          } catch (directApiError) {
+            throw directApiError;
+          }
         }
       }
 
       if (!uid) {
-        console.log("[DEBUG] Failed to get UID from any method");
         throw new Error("Failed to verify token or get user ID");
       }
     } catch (error) {
@@ -167,17 +181,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get request body
+    // Get request body and process it
     const body = await req.json();
+
+    // Validation
+    if (!body.userId || body.userId !== uid) {
+      body.userId = uid; // Set the correct userId
+    }
+
+    // Get request body
     const { studyPlan, subjects, examDate, hoursPerDay } = body;
 
-    console.log("[DEBUG] Creating study plan for user:", uid);
-    console.log("[DEBUG] Study plan subjects count:", subjects?.length);
-    console.log("[DEBUG] Study plan days count:", studyPlan?.days?.length);
 
     // Validate inputs
     if (!studyPlan || !studyPlan.days || !Array.isArray(studyPlan.days)) {
-      console.log("[DEBUG] Invalid study plan data:", studyPlan);
       return NextResponse.json(
         { error: "Bad Request: Study plan is required" },
         { status: 400 },
@@ -194,20 +211,27 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    console.log("[DEBUG] Attempting to add to Firestore");
 
     try {
       const docRef = await addDoc(collection(db, "studyPlans"), studyPlanData);
-      console.log("[DEBUG] Study plan saved with ID:", docRef.id);
 
       return NextResponse.json({
+        data: {
+          id: docRef.id
+        },
         success: true,
-        message: "Study plan saved successfully",
-        planId: docRef.id,
+        message: "Study plan saved successfully"
       });
     } catch (firestoreError) {
       console.error("[DEBUG] Firestore error:", firestoreError);
-      throw firestoreError;
+      // Return the error instead of throwing to prevent unhandled rejections
+      return NextResponse.json(
+        {
+          error: "Failed to save study plan to Firestore",
+          details: firestoreError instanceof Error ? firestoreError.message : String(firestoreError),
+        },
+        { status: 500 },
+      );
     }
   } catch (error) {
     console.error("[DEBUG] Error saving study plan:", error);
@@ -243,7 +267,6 @@ export async function DELETE(req: NextRequest) {
         const decodedToken = await serverAuth.verifyIdToken(idToken);
         uid = decodedToken.uid;
       } catch (serverAuthError) {
-        console.log("Server auth failed, trying client auth:", serverAuthError);
 
         // Fallback to client-side auth if there's a currentUser
         if (auth.currentUser) {

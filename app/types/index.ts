@@ -35,6 +35,7 @@ export interface Task {
 
 export interface Day {
   date: string;
+  title: string;
   tasks: Task[];
 }
 

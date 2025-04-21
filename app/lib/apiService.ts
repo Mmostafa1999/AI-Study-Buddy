@@ -176,7 +176,21 @@ export class ApiService<T extends { id: string }> {
       }
 
       const responseData = await response.json();
-      return responseData.data.id;
+      
+      // Handle various response formats
+      if (responseData.data?.id) {
+        return responseData.data.id;
+      } else if (responseData.planId) {
+        return responseData.planId;
+      } else if (responseData.id) {
+        return responseData.id;
+      } else {
+        console.error("Response doesn't contain expected ID format:", responseData);
+        throw new AppError(
+          `Invalid response format from ${this.endpoint}: No ID found`,
+          500
+        );
+      }
     });
   }
 

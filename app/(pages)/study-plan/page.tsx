@@ -22,7 +22,7 @@ import {
 } from "@/app/components/ui/popover";
 import { cn } from "@/app/lib/utils";
 import { format, differenceInDays } from "date-fns";
-import { toast } from "@/app/components/ui/use-toast";
+import { useToast } from "@/app/components/ui/use-toast";
 import { Badge } from "@/app/components/ui/badge";
 import {
     Dialog,
@@ -42,6 +42,28 @@ import {
 } from "@/app/components/ui/select";
 import { motion } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
+
+// Token refresher component
+function TokenRefresher() {
+    const { user } = useAuth();
+
+    useEffect(() => {
+        if (!user) return;
+
+        const refreshToken = async () => {
+            try {
+                const token = await user.getIdToken(true);
+                localStorage.setItem('authToken', token);
+            } catch (error) {
+                // Error handling silently
+            }
+        };
+
+        refreshToken();
+    }, [user]);
+
+    return null;
+}
 
 // SVG Icons
 const CalendarIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -223,11 +245,22 @@ interface StudyTask {
 
 interface DayPlan {
     date: string;
+    title: string;
     tasks: StudyTask[];
 }
 
-interface StudyPlan {
+interface StudyPlanData {
     days: DayPlan[];
+}
+
+// Update the StudyPlan interface to match the API response
+interface CompleteStudyPlan {
+    title: string;
+    description?: string;
+    studyPlan: StudyPlanData;
+    subjects: Subject[];
+    examDate: string;
+    hoursPerDay: number;
 }
 
 const difficultyColors = {
@@ -252,6 +285,7 @@ export default function StudyPlanPage() {
     const { user, loading: authLoading } = useAuth();
     const { studyPlans, loading: plansLoading, createStudyPlan } = useStudyPlan();
     const router = useRouter();
+    const { toast } = useToast();
 
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [newSubject, setNewSubject] = useState("");
@@ -260,28 +294,32 @@ export default function StudyPlanPage() {
     const [examDate, setExamDate] = useState<Date | undefined>(undefined);
     const [hoursPerDay, setHoursPerDay] = useState(4);
     const [loading, setLoading] = useState(false);
-    const [studyPlan, setStudyPlan] = useState<StudyPlan | null>(null);
+    const [studyPlan, setStudyPlan] = useState<StudyPlanData | null>(null);
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [activeTab, setActiveTab] = useState("form");
 
+    // Add TokenRefresher for immediate token refresh on page load
+    useEffect(() => {
+        // Ensure this runs first, before any other token logic
+        if (!user) return;
+
+        const immediateRefresh = async () => {
+            try {
+                const token = await user.getIdToken(true);
+                localStorage.setItem('authToken', token);
+            } catch (error) {
+                // Error handling silently
+            }
+        };
+
+        immediateRefresh();
+    }, [user]);
+
+    // Authentication redirect check
     useEffect(() => {
         if (!authLoading && !user) {
             router.push("/login");
             return;
-        }
-
-        // Force refresh the token to ensure it's always valid
-        if (user) {
-            const refreshToken = async () => {
-                try {
-                    await user.getIdToken(true); // Force token refresh
-                    console.log("Auth token refreshed");
-                } catch (error) {
-                    console.error("Error refreshing token:", error);
-                }
-            };
-
-            refreshToken();
         }
     }, [user, authLoading, router]);
 
@@ -308,11 +346,20 @@ export default function StudyPlanPage() {
     const generateStudyPlan = async (e: FormEvent) => {
         e.preventDefault();
 
-        // Validation
         if (subjects.length === 0) {
             toast({
                 title: "Error",
                 description: "Please add at least one subject",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        // Verify user is authenticated
+        if (!user) {
+            toast({
+                title: "Error",
+                description: "You must be logged in to create a study plan",
                 variant: "destructive",
             });
             return;
@@ -347,18 +394,19 @@ export default function StudyPlanPage() {
 
         try {
             setLoading(true);
-            console.log("Generating study plan...");
 
-            // Generate token for API call
-            if (!user) {
-                throw new Error("User not authenticated");
+            // Get token from localStorage or get a fresh one
+            let token;
+            const cachedToken = localStorage.getItem('authToken');
+
+            if (cachedToken) {
+                token = cachedToken;
+            } else {
+                token = await user.getIdToken(true);
+                localStorage.setItem('authToken', token);
             }
 
-            const token = await user.getIdToken(true); // Force token refresh
-            console.log("Token generated, length:", token.length);
-
             // Call the AI API to generate a study plan
-            console.log("Calling AI API...");
             const response = await fetch("/api/ai/plan", {
                 method: "POST",
                 headers: {
@@ -374,31 +422,53 @@ export default function StudyPlanPage() {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => null);
-                console.error("AI API error:", response.status, errorData);
                 throw new Error(`Failed to generate study plan: ${response.status} ${errorData?.error || ''}`);
             }
 
-            const data = await response.json();
-            console.log("Study plan generated:", data.studyPlan ? "Success" : "Failed");
+            const responseData = await response.json();
 
-            if (!data.studyPlan || !data.studyPlan.days) {
+            if (!responseData.data) {
+                throw new Error("Invalid API response structure");
+            }
+
+            const studyPlanData = responseData.data;
+
+            if (!studyPlanData.studyPlan || !studyPlanData.studyPlan.days) {
                 throw new Error("Invalid study plan data received from API");
             }
 
-            setStudyPlan(data.studyPlan);
+            // Set the study plan for rendering
+            setStudyPlan(studyPlanData.studyPlan);
             setActiveTab("plan");
 
-            // Save the study plan to the database using our context
-            console.log("Saving study plan to database...");
-            const planId = await createStudyPlan({
-                studyPlan: data.studyPlan,
-                subjects: subjects,
-                examDate: examDate.toISOString(),
-                hoursPerDay: hoursPerDay,
-            });
+            // Generate a descriptive title
+            const title = studyPlanData.title ||
+                `Study Plan for ${subjects.map(s => s.name).join(", ")}`;
+
+            // Generate a descriptive subtitle
+            const daysUntilExam = differenceInDays(examDate, new Date());
+            const description = studyPlanData.description ||
+                `Generated plan for ${daysUntilExam} days until exam on ${format(examDate, 'yyyy-MM-dd')}`;
+
+            // Format data for Firestore
+            const planForStorage = {
+                title,
+                description,
+                studyPlan: studyPlanData.studyPlan,
+                subjects: studyPlanData.subjects || subjects.map(s => ({
+                    name: s.name,
+                    difficulty: s.difficulty,
+                    importance: s.importance
+                })),
+                examDate: studyPlanData.examDate || examDate.toISOString(),
+                hoursPerDay: studyPlanData.hoursPerDay || hoursPerDay,
+                userId: user.uid,
+                createdAt: new Date().toISOString()
+            };
+
+            const planId = await createStudyPlan(planForStorage);
 
             if (planId) {
-                console.log("Study plan saved with ID:", planId);
                 toast({
                     title: "Success",
                     description: "Study plan has been generated and saved",
@@ -407,7 +477,6 @@ export default function StudyPlanPage() {
                 throw new Error("Failed to save study plan");
             }
         } catch (error) {
-            console.error("Error generating study plan:", error);
             toast({
                 title: "Error",
                 description: error instanceof Error ? error.message : "Failed to generate study plan. Please try again.",
@@ -647,7 +716,7 @@ export default function StudyPlanPage() {
                                     >
                                         <Card className="overflow-hidden border border-slate-200 shadow-md">
                                             <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-5">
-                                                <CardTitle className="text-xl">{format(new Date(day.date), "EEEE, MMMM d, yyyy")}</CardTitle>
+                                                <CardTitle className="text-xl">{day.title}</CardTitle>
                                             </CardHeader>
                                             <CardContent className="p-0">
                                                 <div className="divide-y">
@@ -687,39 +756,15 @@ export default function StudyPlanPage() {
                                 <GraduationCapIcon className="h-20 w-20 mx-auto mb-6 text-indigo-400" />
                                 <h3 className="text-2xl font-medium text-gray-800 mb-4">No Study Plan Yet</h3>
 
-                                {studyPlans.length > 0 ? (
-                                    <>
-                                        <p className="text-gray-600 mb-8 max-w-md mx-auto text-lg">
-                                            You have existing study plans. Go to the dashboard to view and manage them, or create a new one here.
-                                        </p>
-                                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                                            <Button
-                                                onClick={() => router.push('/dashboard')}
-                                                className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white px-6 py-3 text-base"
-                                            >
-                                                Go to Dashboard
-                                            </Button>
-                                            <Button
-                                                onClick={() => setActiveTab("form")}
-                                                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-3 text-base"
-                                            >
-                                                Create New Plan <ArrowRightIcon className="ml-2 h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <p className="text-gray-600 mb-8 max-w-md mx-auto text-lg">
-                                            Fill out the form parameters to generate your personalized study plan
-                                        </p>
-                                        <Button
-                                            onClick={() => setActiveTab("form")}
-                                            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-3 text-base"
-                                        >
-                                            Create Study Plan <ArrowRightIcon className="ml-2 h-4 w-4" />
-                                        </Button>
-                                    </>
-                                )}
+                                <p className="text-gray-600 mb-8 max-w-md mx-auto text-lg">
+                                    Fill out the form parameters to generate your personalized study plan
+                                </p>
+                                <Button
+                                    onClick={() => setActiveTab("form")}
+                                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-3 text-base"
+                                >
+                                    Create Study Plan <ArrowRightIcon className="ml-2 h-4 w-4" />
+                                </Button>
                             </div>
                         )}
                     </TabsContent>

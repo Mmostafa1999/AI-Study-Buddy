@@ -19,7 +19,6 @@ export default function AuthTokenRefresher() {
             try {
                 const token = await user.getIdToken(true);
                 localStorage.setItem('authToken', token);
-                console.log("Page-level token refresh completed");
             } catch (error) {
                 console.error("Page-level token refresh failed:", error);
             }

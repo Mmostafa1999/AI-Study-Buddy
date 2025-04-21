@@ -50,6 +50,11 @@ export default function FlashcardList({
         return result;
     }, [flashcards, searchTerm, showFavoritesOnly]);
 
+    // Get the current flashcard based on the current index
+    const currentFlashcard = useMemo(() => {
+        return filteredFlashcards.length > 0 ? filteredFlashcards[currentIndex] : null;
+    }, [filteredFlashcards, currentIndex]);
+
     // Reset current index when filters change
     useEffect(() => {
         if (filteredFlashcards.length > 0) {
@@ -75,27 +80,12 @@ export default function FlashcardList({
         }, 200)
     }
 
-    // Handle shuffling the deck
-    const handleShuffle = () => {
-        const shuffled = [...filteredFlashcards];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-        // Instead of modifying the filtered flashcards directly, we recreate the filtered list 
-        // by reapplying the filters on our shuffled array
-        setSearchTerm(''); // Clear search term
-        setShowFavoritesOnly(false); // Clear favorites filter
-        // This will trigger useEffect to reset the current index
-        // We're keeping the original array intact but changing the view order
-    };
+
 
     // Handle toggling favorite status
     const handleToggleFavorite = () => {
-        if (!filteredFlashcards.length || !onToggleFavorite) return;
-
-        const current = filteredFlashcards[currentIndex];
-        onToggleFavorite(current.id, !current.favorited);
+        if (!currentFlashcard || !onToggleFavorite) return;
+        onToggleFavorite(currentFlashcard.id, !currentFlashcard.favorited);
     };
 
     // Edit mode handlers
@@ -251,8 +241,6 @@ export default function FlashcardList({
         );
     }
 
-    const currentFlashcard = filteredFlashcards[currentIndex]
-
     return (
         <div className="max-w-3xl mx-auto px-4">
             {/* Search and filter */}
@@ -306,52 +294,43 @@ export default function FlashcardList({
                         </svg>
                         Favorites
                     </button>
-                    <button
-                        className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
-                        onClick={handleShuffle}
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-4 w-4 mr-1.5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                            />
-                        </svg>
-                        Shuffle
-                    </button>
+
                 </div>
             </div>
 
             {/* Counter */}
             <div className="text-center mb-4">
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    Card {currentIndex + 1} of {filteredFlashcards.length}
+                    {filteredFlashcards.length > 0
+                        ? `Card ${currentIndex + 1} of ${filteredFlashcards.length}`
+                        : "No cards available"
+                    }
                 </span>
             </div>
 
             {/* Flashcard */}
-            <FlashcardComponent
-                flashcard={currentFlashcard}
-                isFlipped={flipped}
-                onFlip={() => setFlipped(!flipped)}
-                onEdit={() => handleStartEdit(currentFlashcard.id)}
-                onDelete={() => onDelete && onDelete(currentFlashcard.id)}
-                onToggleFavorite={handleToggleFavorite}
-                editable={editable}
-            />
+            {currentFlashcard ? (
+                <FlashcardComponent
+                    flashcard={currentFlashcard}
+                    isFlipped={flipped}
+                    onFlip={() => setFlipped(!flipped)}
+                    onEdit={() => handleStartEdit(currentFlashcard.id)}
+                    onDelete={() => onDelete && onDelete(currentFlashcard.id)}
+                    onToggleFavorite={handleToggleFavorite}
+                    editable={editable}
+                />
+            ) : (
+                <div className="w-full max-w-3xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-xl shadow-md text-center">
+                    <p className="text-gray-600 dark:text-gray-400">No flashcard available</p>
+                </div>
+            )}
 
             {/* Navigation */}
             <div className="flex justify-center space-x-4 mt-8">
                 <button
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+                    className={`inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600 ${filteredFlashcards.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
                     onClick={handlePrevious}
+                    disabled={filteredFlashcards.length <= 1}
                 >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -370,8 +349,9 @@ export default function FlashcardList({
                     Previous
                 </button>
                 <button
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 dark:bg-primary-700 dark:hover:bg-primary-800"
+                    className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 dark:bg-primary-700 dark:hover:bg-primary-800 ${filteredFlashcards.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
                     onClick={handleNext}
+                    disabled={filteredFlashcards.length <= 1}
                 >
                     Next
                     <svg
@@ -394,7 +374,10 @@ export default function FlashcardList({
             {/* Count indicator for small screens */}
             <div className="block sm:hidden text-center mt-4">
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {currentIndex + 1} / {filteredFlashcards.length}
+                    {filteredFlashcards.length > 0
+                        ? `${currentIndex + 1} / ${filteredFlashcards.length}`
+                        : "0 / 0"
+                    }
                 </span>
             </div>
         </div>
