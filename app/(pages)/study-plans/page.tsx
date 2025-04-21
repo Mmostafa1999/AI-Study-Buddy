@@ -138,7 +138,7 @@ export default function StudyPlansPage() {
 
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push("/sign-in");
+            router.push("/login");
         }
     }, [user, authLoading, router]);
 

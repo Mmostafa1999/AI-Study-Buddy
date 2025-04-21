@@ -151,7 +151,7 @@ export default function StudyPlanDetailPage({ params }: { params: { id: string }
 
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push("/sign-in");
+            router.push("/login");
             return;
         }
 

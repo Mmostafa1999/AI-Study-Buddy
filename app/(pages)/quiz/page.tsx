@@ -39,7 +39,7 @@ export default function QuizPage() {
     // Redirect to login if not authenticated
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push('/sign-in')
+            router.push('/login')
         }
     }, [user, authLoading, router])
 

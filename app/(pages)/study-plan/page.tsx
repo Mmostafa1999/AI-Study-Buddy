@@ -266,7 +266,7 @@ export default function StudyPlanPage() {
 
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push("/sign-in");
+            router.push("/login");
             return;
         }
 
