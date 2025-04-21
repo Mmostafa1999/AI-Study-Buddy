@@ -10,18 +10,66 @@ export const maxDuration = 30;
 // Initialize the Google Generative AI SDK
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
+// Check for environment variables with different possible prefixes
+const getEnvVar = (name: string) => {
+  const possiblePrefixes = ['STORAGE_', 'KV_', ''];
+  for (const prefix of possiblePrefixes) {
+    const value = process.env[`${prefix}${name}`];
+    if (value) return value;
+  }
+  return undefined;
+};
+
+const KV_URL = getEnvVar('KV_URL') || process.env.UPSTASH_REDIS_REST_URL;
+const KV_REST_API_TOKEN = getEnvVar('KV_REST_API_TOKEN') || process.env.UPSTASH_REDIS_REST_TOKEN;
+const KV_REST_API_URL = getEnvVar('KV_REST_API_URL') || process.env.UPSTASH_REDIS_REST_URL;
+
+// Log environment variables (omitting sensitive parts)
+const envDebug = {
+  KV_URL_PREFIX: KV_URL ? KV_URL.slice(0, 15) + "..." : "undefined",
+  KV_REST_API_URL: KV_REST_API_URL || "undefined",
+  KV_REST_API_TOKEN_EXISTS: !!KV_REST_API_TOKEN,
+  NODE_ENV: process.env.NODE_ENV || "unknown",
+  UPSTASH_EXISTS: !!process.env.UPSTASH_REDIS_REST_URL
+};
+
+console.log("Environment debug:", JSON.stringify(envDebug));
+
 // Create Rate limit - 5 requests per 30 seconds
 let ratelimit: Ratelimit | null = null;
 
 // Initialize ratelimit only if KV environment variables are available
 try {
-  ratelimit = new Ratelimit({
-    redis: kv,
-    limiter: Ratelimit.fixedWindow(5, "30s"),
-    analytics: true,
-  });
+  if (!KV_URL || !KV_REST_API_TOKEN) {
+    console.warn("Rate limiting disabled: Missing KV environment variables");
+  } else {
+    // Force Upstash connection if KV isn't working
+    if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+      console.log("Using direct Upstash connection for rate limiting");
+      const { Redis } = require('@upstash/redis');
+      const redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+      });
+      
+      ratelimit = new Ratelimit({
+        redis,
+        limiter: Ratelimit.fixedWindow(5, "30s"),
+        analytics: true,
+      });
+    } else {
+      // Default KV approach
+      ratelimit = new Ratelimit({
+        redis: kv,
+        limiter: Ratelimit.fixedWindow(5, "30s"),
+        analytics: true,
+      });
+    }
+    
+    console.log("Rate limiting initialized successfully");
+  }
 } catch (error) {
-  console.warn("Rate limiting is disabled: KV not configured");
+  console.error("Failed to initialize rate limiting:", error);
 }
 
 export async function POST(req: NextRequest) {
@@ -31,10 +79,14 @@ export async function POST(req: NextRequest) {
       try {
         // Get client IP for rate limiting
         const ip = req.ip ?? "anonymous";
+        console.log(`Rate limiting check for IP: ${ip.slice(0, 3)}...`);
+        
         const { success, remaining } = await ratelimit.limit(ip);
+        console.log(`Rate limit result: success=${success}, remaining=${remaining}`);
 
         // Return 429 if rate limit exceeded
         if (!success) {
+          console.log(`Rate limit exceeded for IP: ${ip.slice(0, 3)}...`);
           return new Response(
             JSON.stringify({ 
               error: "Too many requests. Please try again later.",
@@ -47,9 +99,11 @@ export async function POST(req: NextRequest) {
           );
         }
       } catch (error) {
-        console.warn("Rate limiting failed:", error);
+        console.error("Rate limiting failed:", error);
         // Continue without rate limiting if it fails
       }
+    } else {
+      console.log("Request proceeding without rate limiting");
     }
 
     // Verify authentication

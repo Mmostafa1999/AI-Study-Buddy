@@ -82,7 +82,7 @@ export default function Navbar() {
                     </div>
 
                     {/* Desktop menu */}
-                    <div className="hidden md:flex md:items-center md:space-x-6">
+                    <div className="hidden md:ml-6 md:flex md:items-center md:space-x-2">
                         {navLinks.map((link) => (
                             <Link
                                 key={link.name}
@@ -97,31 +97,6 @@ export default function Navbar() {
                                 {link.name}
                             </Link>
                         ))}
-
-                        {!loading && (
-                            <>
-                                {user ? (
-                                    <motion.button
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
-                                        onClick={handleSignOut}
-                                        className="ml-2 px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-pink-500 to-purple-600 rounded-md hover:opacity-90"
-                                    >
-                                        Sign Out
-                                    </motion.button>
-                                ) : (
-                                    <Link href="/login">
-                                        <motion.button
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            className="ml-2 px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-md hover:opacity-90"
-                                        >
-                                            Sign In
-                                        </motion.button>
-                                    </Link>
-                                )}
-                            </>
-                        )}
                     </div>
 
                     {/* Mobile menu button */}
@@ -182,6 +157,7 @@ export default function Navbar() {
                                 {link.name}
                             </Link>
                         ))}
+
                         {!loading && (
                             <>
                                 {user ? (

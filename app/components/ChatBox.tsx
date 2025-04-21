@@ -140,8 +140,14 @@ export default function ChatBox() {
                         animate={{ opacity: 1, y: 0 }}
                         className="flex justify-center"
                     >
-                        <div className="max-w-3/4 rounded-lg px-4 py-2 bg-amber-100 text-amber-600 text-sm">
-                            {rateLimitInfo.error} Please wait a moment before trying again.
+                        <div className="max-w-3/4 rounded-lg px-4 py-3 bg-red-100 text-red-600 text-sm border border-red-200 shadow-sm">
+                            <div className="flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                                    <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm-1.72 6.97a.75.75 0 10-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 101.06 1.06L12 13.06l1.72 1.72a.75.75 0 101.06-1.06L13.06 12l1.72-1.72a.75.75 0 10-1.06-1.06L12 10.94l-1.72-1.72z" clipRule="evenodd" />
+                                </svg>
+                                <span className="font-medium">{rateLimitInfo.error}</span>
+                            </div>
+                            <p className="mt-1 ml-7">Please wait a moment before sending another message.</p>
                         </div>
                     </motion.div>
                 )}
@@ -171,11 +177,11 @@ export default function ChatBox() {
                         onChange={handleInputChange}
                         placeholder="Type your message..."
                         className="flex-1 px-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        disabled={isLoading}
+                        disabled={isLoading || !!rateLimitInfo}
                     />
                     <button
                         type="submit"
-                        className={`px-4 py-2 rounded-full bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:bg-primary-700 dark:hover:bg-primary-800 transition-colors ${isLoading || rateLimitInfo ? 'opacity-50 cursor-not-allowed' : ''
+                        className={`px-4 py-2 rounded-full bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:bg-primary-700 dark:hover:bg-primary-800 transition-colors ${isLoading || input.trim() === '' || !!rateLimitInfo ? 'opacity-50 cursor-not-allowed' : ''
                             }`}
                         disabled={isLoading || input.trim() === '' || !!rateLimitInfo}
                     >
@@ -195,6 +201,11 @@ export default function ChatBox() {
                         </svg>
                     </button>
                 </form>
+                {rateLimitInfo && (
+                    <div className="text-center mt-2 text-xs text-gray-500">
+                        Input disabled due to rate limit. Please wait a moment.
+                    </div>
+                )}
             </div>
         </div>
     )
