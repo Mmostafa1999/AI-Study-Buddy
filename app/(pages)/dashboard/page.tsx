@@ -117,10 +117,14 @@ export default function DashboardPage() {
 
     if (authLoading || plansLoading) {
         return (
-            <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+           
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="animate-pulse text-center">
+                    <div className="h-12 w-12 mx-auto rounded-full bg-primary-200 dark:bg-primary-800 mb-4"></div>
+                    <div className="h-4 w-24 mx-auto bg-gray-200 dark:bg-gray-700 rounded"></div>
+                </div>
             </div>
-        )
+)
     }
 
     if (!user) {

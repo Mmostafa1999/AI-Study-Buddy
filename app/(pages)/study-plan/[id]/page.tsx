@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
 import { useStudyPlan } from "@/app/contexts/StudyPlanContext";
@@ -119,14 +119,22 @@ export default function StudyPlanDetailPage({ params }: { params: { id: string }
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<string>("overview");
     const [currentDayIndex, setCurrentDayIndex] = useState<number>(0);
+    const [firstLoadComplete, setFirstLoadComplete] = useState(false);
+    const isFetchingRef = useRef(false);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const loadStudyPlan = useCallback(async () => {
+        // Prevent duplicate requests
+        if (isFetchingRef.current) return;
+
         try {
+            isFetchingRef.current = true;
+
+            // Fetch the plan
             const plan = await fetchStudyPlan(params.id);
 
-            // Set the active tab to today if possible
+            // Update tabs if we have plan data
             if (plan?.studyPlan?.days) {
                 const todayIndex = plan.studyPlan.days.findIndex(day => {
                     const dayDate = new Date(day.date);
@@ -146,19 +154,23 @@ export default function StudyPlanDetailPage({ params }: { params: { id: string }
                 description: "Failed to load study plan. Please try again.",
                 variant: "destructive",
             });
+        } finally {
+            setFirstLoadComplete(true);
+            isFetchingRef.current = false;
         }
-    }, [params.id, fetchStudyPlan, today, setActiveTab, setCurrentDayIndex, toast]);
+    }, [params.id, fetchStudyPlan, today]);
 
+    // Only fetch the plan once when component mounts
     useEffect(() => {
         if (!authLoading && !user) {
             router.push("/login");
             return;
         }
 
-        if (user && params.id) {
+        if (user && params.id && !firstLoadComplete && !isFetchingRef.current) {
             loadStudyPlan();
         }
-    }, [user, authLoading, params.id, router, loadStudyPlan]);
+    }, [user, authLoading, params.id, router, loadStudyPlan, firstLoadComplete]);
 
     const getPriorityColor = (priority: string) => {
         switch (priority.toLowerCase()) {
@@ -217,10 +229,14 @@ export default function StudyPlanDetailPage({ params }: { params: { id: string }
 
     if (authLoading || planLoading) {
         return (
-            <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="animate-pulse text-center">
+                    <div className="h-12 w-12 mx-auto rounded-full bg-primary-200 dark:bg-primary-800 mb-4"></div>
+                    <div className="h-4 w-24 mx-auto bg-gray-200 dark:bg-gray-700 rounded"></div>
+                </div>
             </div>
-        );
+        )
+
     }
 
     if (!studyPlan) {

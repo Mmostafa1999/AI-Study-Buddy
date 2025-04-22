@@ -152,7 +152,19 @@ export class ApiService<T extends { id: string }> {
       }
 
       const data = await response.json();
-      return data.data;
+      
+      // Handle various response formats
+      if (data?.data) {
+        return data?.data;
+      } else if (data.plan) {
+        return data.plan;
+      } else {
+        console.error("Response doesn't contain expected data format:", data);
+        throw new AppError(
+          `Invalid response format from ${this.endpoint}/${id}: No data found`,
+          500
+        );
+      }
     });
   }
 

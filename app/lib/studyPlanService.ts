@@ -56,6 +56,57 @@ class StudyPlanService extends ApiService<StudyPlan> {
     super("api/study-plans");
   }
 
+  // Improved fetchById with better error handling
+  async fetchById(id: string): Promise<Result<StudyPlan>> {
+    try {
+      const response = await fetch(this.getUrl(id), {
+        headers: this.options.headers,
+        cache: 'no-store'
+      });
+
+      if (!response.ok) {
+        console.error(`Failed to fetch study plan with ID ${id}: ${response.status}`);
+        return {
+          success: false,
+          error: {
+            message: `Failed to fetch study plan: ${response.statusText}`,
+            statusCode: response.status
+          }
+        };
+      }
+
+      const data = await response.json();
+      
+      // Check which response format we have
+      const plan = data.data || data.plan;
+      
+      if (!plan) {
+        console.error("Response format is incorrect:", data);
+        return {
+          success: false,
+          error: {
+            message: "Invalid API response format",
+            statusCode: 500
+          }
+        };
+      }
+      
+      return {
+        success: true,
+        data: plan
+      };
+    } catch (error) {
+      console.error("Error in StudyPlanService.fetchById:", error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error occurred",
+          statusCode: 500
+        }
+      };
+    }
+  }
+
   // Override create to validate study plan data
   async create(data: Omit<StudyPlan, "id">): Promise<Result<string>> {
     const validationResult = studyPlanSchema.safeParse(data);

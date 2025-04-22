@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react'
 import { useAuth } from '@/app/hooks/useAuth'
 import { toast } from '@/app/components/ui/use-toast'
 import { collection, query, where, getDocs } from 'firebase/firestore'
@@ -35,6 +35,8 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
     const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([])
     const [currentStudyPlan, setCurrentStudyPlan] = useState<StudyPlan | null>(null)
     const [loading, setLoading] = useState(false)
+    // Keep track of in-progress requests to prevent duplicates
+    const pendingRequestsRef = useRef<{ [key: string]: boolean }>({})
 
     const fetchStudyPlans = useCallback(async () => {
         if (!user) return
@@ -77,8 +79,24 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
     const fetchStudyPlan = async (id: string): Promise<StudyPlan | null> => {
         if (!user) return null
 
+        // Prevent duplicate requests for the same ID
+        if (pendingRequestsRef.current[id]) {
+            // If we already have a plan with this ID, return it
+            const existingPlan = studyPlans.find(p => p.id === id)
+            return existingPlan || null
+        }
+
+        // Check if plan is already in cache
+        const existingPlan = studyPlans.find(p => p.id === id)
+        if (existingPlan) {
+            setCurrentStudyPlan(existingPlan)
+            return existingPlan
+        }
+
         try {
             setLoading(true)
+            pendingRequestsRef.current[id] = true
+
             const token = await user.getIdToken(true)
             studyPlanService.setAuthToken(token)
             const result = await studyPlanService.fetchById(id)
@@ -88,6 +106,11 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
             }
 
             const plan = result.data
+
+            // Check if plan exists before trying to access its properties
+            if (!plan) {
+                throw new Error('Study plan not found or data is missing')
+            }
 
             // Update the local cache
             setStudyPlans(prev => {
@@ -110,6 +133,8 @@ export const StudyPlanProvider = ({ children }: { children: ReactNode }) => {
             })
             return null
         } finally {
+            // Clear the pending request flag
+            delete pendingRequestsRef.current[id]
             setLoading(false)
         }
     }

@@ -35,11 +35,21 @@ export default function FlashcardList({
 
         // Filter by search term
         if (searchTerm) {
-            const term = searchTerm.toLowerCase();
-            result = result.filter(card =>
-                card.question.toLowerCase().includes(term) ||
-                card.answer.toLowerCase().includes(term)
-            );
+            const term = searchTerm.toLowerCase().trim();
+            if (term) {
+                // Split search term by spaces to allow for multi-word search
+                const searchTerms = term.split(/\s+/).filter(t => t.length > 0);
+
+                result = result.filter(card => {
+                    const questionLower = card.question.toLowerCase();
+                    const answerLower = card.answer.toLowerCase();
+
+                    // Check if all terms are found in either question or answer
+                    return searchTerms.every(term =>
+                        questionLower.includes(term) || answerLower.includes(term)
+                    );
+                });
+            }
         }
 
         // Filter by favorites
@@ -139,39 +149,68 @@ export default function FlashcardList({
                     transition={{ duration: 0.5 }}
                     className="h-20 w-20 bg-primary-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4"
                 >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={1.5}
-                        stroke="currentColor"
-                        className="w-10 h-10 text-primary-600 dark:text-primary-400"
-                    >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.068.157 2.148.279 3.238.364.466.037.893.281 1.153.671L12 21l2.652-3.978c.26-.39.687-.634 1.153-.67 1.09-.086 2.17-.208 3.238-.365 1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"
-                        />
-                    </svg>
+                    {searchTerm ? (
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={1.5}
+                            stroke="currentColor"
+                            className="w-10 h-10 text-primary-600 dark:text-primary-400"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                            />
+                        </svg>
+                    ) : (
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={1.5}
+                            stroke="currentColor"
+                            className="w-10 h-10 text-primary-600 dark:text-primary-400"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.068.157 2.148.279 3.238.364.466.037.893.281 1.153.671L12 21l2.652-3.978c.26-.39.687-.634 1.153-.67 1.09-.086 2.17-.208 3.238-.365 1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"
+                            />
+                        </svg>
+                    )}
                 </motion.div>
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                    No flashcards found
+                    {searchTerm ? "No matching flashcards found" : "No flashcards found"}
                 </h3>
-                <p className="text-gray-600 dark:text-gray-400 max-w-md">
-                    {searchTerm || showFavoritesOnly ?
-                        "No flashcards match your current filters." :
-                        "Generate flashcards from your notes or create them manually."}
+                <p className="text-gray-600 dark:text-gray-400 max-w-md mb-4">
+                    {searchTerm ?
+                        `We couldn't find any flashcards matching "${searchTerm}". Try a different search term or clear your filters.` :
+                        showFavoritesOnly ?
+                            "You don't have any favorite flashcards yet." :
+                            "Generate flashcards from your notes or create them manually."}
                 </p>
                 {(searchTerm || showFavoritesOnly) && (
-                    <button
-                        onClick={() => {
-                            setSearchTerm('');
-                            setShowFavoritesOnly(false);
-                        }}
-                        className="mt-4 btn btn-outline btn-sm"
-                    >
-                        Clear Filters
-                    </button>
+                    <div className="flex gap-3 mt-2">
+                        <button
+                            onClick={() => {
+                                setSearchTerm('');
+                                setShowFavoritesOnly(false);
+                            }}
+                            className="btn btn-primary btn-sm"
+                        >
+                            Clear All Filters
+                        </button>
+                        {searchTerm && (
+                            <button
+                                onClick={() => setSearchTerm('')}
+                                className="btn btn-outline btn-sm"
+                            >
+                                Clear Search
+                            </button>
+                        )}
+                    </div>
                 )}
             </div>
         )
@@ -263,11 +302,33 @@ export default function FlashcardList({
                     </div>
                     <input
                         type="text"
-                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                         placeholder="Search flashcards..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                    {searchTerm && (
+                        <button
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                            onClick={() => setSearchTerm('')}
+                            aria-label="Clear search"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
+                    )}
                 </div>
                 <div className="flex items-center space-x-2">
                     <button
@@ -310,15 +371,32 @@ export default function FlashcardList({
 
             {/* Flashcard */}
             {currentFlashcard ? (
-                <FlashcardComponent
-                    flashcard={currentFlashcard}
-                    isFlipped={flipped}
-                    onFlip={() => setFlipped(!flipped)}
-                    onEdit={() => handleStartEdit(currentFlashcard.id)}
-                    onDelete={() => onDelete && onDelete(currentFlashcard.id)}
-                    onToggleFavorite={handleToggleFavorite}
-                    editable={editable}
-                />
+                <>
+                    <FlashcardComponent
+                        flashcard={currentFlashcard}
+                        isFlipped={flipped}
+                        onFlip={() => setFlipped(!flipped)}
+                        onEdit={() => handleStartEdit(currentFlashcard.id)}
+                        onDelete={() => onDelete && onDelete(currentFlashcard.id)}
+                        onToggleFavorite={handleToggleFavorite}
+                        editable={editable}
+                    />
+                    {searchTerm && searchTerm.trim() !== '' && (
+                        <div className="text-center mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            <span className="inline-flex items-center">
+                                <svg
+                                    className="h-3 w-3 mr-1"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Matched your search for "{searchTerm}"
+                            </span>
+                        </div>
+                    )}
+                </>
             ) : (
                 <div className="w-full max-w-3xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-xl shadow-md text-center">
                     <p className="text-gray-600 dark:text-gray-400">No flashcard available</p>

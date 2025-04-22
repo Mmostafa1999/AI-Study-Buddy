@@ -33,7 +33,6 @@ const envDebug = {
   UPSTASH_EXISTS: !!process.env.UPSTASH_REDIS_REST_URL
 };
 
-console.log("Environment debug:", JSON.stringify(envDebug));
 
 // Create Rate limit - 5 requests per 30 seconds
 let ratelimit: Ratelimit | null = null;
@@ -45,7 +44,6 @@ try {
   } else {
     // Force Upstash connection if KV isn't working
     if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-      console.log("Using direct Upstash connection for rate limiting");
       const { Redis } = require('@upstash/redis');
       const redis = new Redis({
         url: process.env.UPSTASH_REDIS_REST_URL,
@@ -66,7 +64,6 @@ try {
       });
     }
     
-    console.log("Rate limiting initialized successfully");
   }
 } catch (error) {
   console.error("Failed to initialize rate limiting:", error);
@@ -79,14 +76,11 @@ export async function POST(req: NextRequest) {
       try {
         // Get client IP for rate limiting
         const ip = req.ip ?? "anonymous";
-        console.log(`Rate limiting check for IP: ${ip.slice(0, 3)}...`);
         
         const { success, remaining } = await ratelimit.limit(ip);
-        console.log(`Rate limit result: success=${success}, remaining=${remaining}`);
 
         // Return 429 if rate limit exceeded
         if (!success) {
-          console.log(`Rate limit exceeded for IP: ${ip.slice(0, 3)}...`);
           return new Response(
             JSON.stringify({ 
               error: "Too many requests. Please try again later.",
@@ -103,7 +97,6 @@ export async function POST(req: NextRequest) {
         // Continue without rate limiting if it fails
       }
     } else {
-      console.log("Request proceeding without rate limiting");
     }
 
     // Verify authentication

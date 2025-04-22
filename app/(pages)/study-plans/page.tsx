@@ -106,29 +106,29 @@ const Trash2 = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
 );
 
-interface StudyPlan {
-    id: string;
-    userId: string;
-    studyPlan: {
-        days: {
-            date: string;
-            tasks: {
-                subject: string;
-                duration: number;
-                activity: string;
-                priority: string;
-            }[];
-        }[];
-    };
-    subjects: Array<{
-        name: string;
-        difficulty: string;
-        importance: string;
-    }>;
-    examDate: string;
-    hoursPerDay: number;
-    createdAt: string;
-}
+// interface StudyPlan {
+//     id: string;
+//     userId: string;
+//     studyPlan: {
+//         days: {
+//             date: string;
+//             tasks: {
+//                 subject: string;
+//                 duration: number;
+//                 activity: string;
+//                 priority: string;
+//             }[];
+//         }[];
+//     };
+//     subjects: Array<{
+//         name: string;
+//         difficulty: string;
+//         importance: string;
+//     }>;
+//     examDate: string;
+//     hoursPerDay: number;
+//     createdAt: string;
+// }
 
 export default function StudyPlansPage() {
     const { user, loading: authLoading } = useAuth();
@@ -171,10 +171,14 @@ export default function StudyPlansPage() {
 
     if (authLoading) {
         return (
-            <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="animate-pulse text-center">
+                    <div className="h-12 w-12 mx-auto rounded-full bg-primary-200 dark:bg-primary-800 mb-4"></div>
+                    <div className="h-4 w-24 mx-auto bg-gray-200 dark:bg-gray-700 rounded"></div>
+                </div>
             </div>
-        );
+        )
     }
 
     return (
@@ -256,10 +260,12 @@ export default function StudyPlansPage() {
                             <CardFooter className="flex justify-between pt-3">
                                 <Button
                                     variant="outline"
-                                    onClick={() => viewPlan(plan.id)}
+                                    asChild
                                     className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800"
                                 >
-                                    View Plan
+                                    <Link href={`/study-plan/${plan.id}`}>
+                                        View Plan
+                                    </Link>
                                 </Button>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
