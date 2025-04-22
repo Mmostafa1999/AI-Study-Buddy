@@ -116,19 +116,25 @@ export async function POST(req: NextRequest) {
     }
 
     // Parse the request body
-    const { messages } = await req.json();
+    const body = await req.json();
+    const { messages, fileContext } = body;
 
     // Get the user's question from the last message
     const lastMessage = messages[messages.length - 1];
     const prompt = lastMessage.content;
 
     // Prepare system instructions for the AI
-    const systemInstruction = `
+    let systemInstruction = `
       You are an AI study assistant for students. You help explain concepts, answer questions,
       and provide educational guidance in a clear and concise manner. Always provide accurate 
       information and when you don't know something, admit it instead of making up answers.
       You can use markdown formatting in your responses to make them more readable.
     `;
+
+    // Add document context if provided
+    if (fileContext && fileContext.trim() !== '') {
+      systemInstruction += `\n\nThe user has uploaded a document. Here is the content of that document for reference:\n\n${fileContext}\n\nWhen the user asks questions, they may be referring to content in this document.`;
+    }
 
     // Create conversation history
     const conversationHistory = messages.slice(0, -1).map((msg: any) => ({

@@ -18,17 +18,17 @@ export function MessageItem({ message }: MessageItemProps) {
       className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
     >
       <div
-        className={`max-w-3/4 rounded-lg px-4 py-2 ${isUser
+        className={`max-w-[85%] rounded-2xl px-3 py-2 shadow-sm ${isUser
           ? 'bg-primary-600 text-white'
-          : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+          : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
           }`}
       >
         {message.role === 'assistant' ? (
-          <div className="prose dark:prose-invert prose-sm">
+          <div className="prose dark:prose-invert prose-sm max-w-none">
             <Markdown>{message.content}</Markdown>
           </div>
         ) : (
-          <div>{message.content}</div>
+          <div className="text-sm">{message.content}</div>
         )}
       </div>
     </motion.div>
